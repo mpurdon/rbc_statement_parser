@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "statement_parser"
+version = "0.1.0"
+description = ""
+authors = ["Matthew Purdon <matthew.purdon@trajectorservices.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+typer = "^0.7.0"
+rich = "^12.6.0"
+PyPDF2 = "^2.11.1"
+python-dotenv = "^0.21.0"
+flake8 = "^5.0.4"
+Flake8-pyproject = "^1.1.0"
+pytest = "^7.2.0"
+pytest-cov = "^4.0.0"
+pytest-sugar = "^0.9.6"
+pytest-mock = "^3.10.0"
+natsort = "^8.2.0"
+XlsxWriter = "^3.0.3"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
