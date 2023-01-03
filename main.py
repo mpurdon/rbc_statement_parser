@@ -174,7 +174,9 @@ def process_statements():
     Process the statements in the configured path
 
     """
-    rprint(f'processing [yellow]{statement_path}[/yellow] and outputting to [yellow]{output_path}[/yellow]')
+    rprint(
+        f'processing [yellow]{statement_path}[/yellow] and outputting to [yellow]{output_path}[/yellow] using [yellow]{app_options.categories_path}[/yellow]'
+    )
     statement_items = track(
         natsort.natsorted(statement_path.iterdir()),
         description='Processing Statements...',
@@ -195,11 +197,12 @@ def process_statements():
 
 
 @app.callback(invoke_without_command=True)
-def main(verbose: bool = False, dry_run: bool = False):
+def main(verbose: bool = False, dry_run: bool = False, categories_path: str = 'categories.json'):
     """
     Process the statements
 
     Args:
+        categories_path: The file to load categories from
         verbose: Should the program output verbose messages
         dry_run: Should the program not make any changes (readonly)
 
@@ -207,6 +210,8 @@ def main(verbose: bool = False, dry_run: bool = False):
     # Copy options to global options
     app_options.verbose = verbose
     app_options.dry_run = dry_run
+    app_options.categories_path = categories_path
+
 
     loaded = load_dotenv()
     if not loaded:
