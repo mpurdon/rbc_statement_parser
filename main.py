@@ -48,6 +48,7 @@ statement_path = pathlib.Path(app_options.statement_path)
 output_path = pathlib.Path(app_options.output_path)
 
 categories = {}
+page_order = []
 ignored = []
 
 
@@ -79,6 +80,7 @@ def load_categories(display: bool = False):
 
     """
     global categories
+    global page_order
 
     categories = {}
     debug(f'loading categories from {app_options.categories_path}')
@@ -88,8 +90,13 @@ def load_categories(display: bool = False):
 
         last_page = None
         last_category = None
+        page_order = [''] * len(config)
         for page, page_categories in config.items():
             for category, patterns in page_categories.items():
+                # Record the display order for later, then ditch it
+                if category == 'display_order':
+                    page_order[patterns - 1] = page
+                    continue
                 for pattern, friendly_name in patterns.items():
                     # If we didn't provide a friendly name, just use the pattern
                     if friendly_name is None:
@@ -349,7 +356,15 @@ def display_report(report_data):
                 bgcolor='blue'
             )
         )
-        for page, page_categories in pages.items():
+
+        for page in page_order:
+
+            if page not in pages:
+                continue
+
+            page_categories = pages[page]
+
+            # Process this later
             if page in monthly_pages:
                 continue
 
@@ -486,6 +501,8 @@ def export_report(report_data):
     Export the generated report to excel
 
     """
+    global page_order
+
     monthly_pages = [
         'Housing and Utilities',
     ]
@@ -534,7 +551,14 @@ def export_report(report_data):
             }
         )
 
-        for page, page_categories in pages.items():
+        for page in page_order:
+
+            if page not in pages:
+                continue
+
+            page_categories = pages[page]
+
+            # We process this later
             if page in monthly_pages:
                 continue
 
