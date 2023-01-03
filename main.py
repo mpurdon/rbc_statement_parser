@@ -19,6 +19,7 @@ from rich.table import Column, Table, Style, Text
 
 from parsers.expense import Expense
 from parsers.my_main_money import MyMainMoney
+from parsers.nsf import NSF
 from parsers.visa_avion_unlimited import VISAAvionUnlimited
 
 app = typer.Typer(
@@ -279,33 +280,6 @@ def display_expenses(expenses: list[Expense]):
         )
 
     rprint(table)
-
-
-def filter_visa_debit_corrections(expenses: list[Expense]):
-    """
-    Remove corrected VISA virtual debit™ expenses
-
-    """
-    debug(f'filtering {len(expenses)} expenses')
-
-    virtual_debit_map = {}
-    for index, expense in enumerate(expenses):
-        if expense.visa_debit_id is not None:
-            if expense.visa_debit_id in virtual_debit_map:
-                debug(f'removing corrected expense {expense} ')
-                # @ToDo: this can't be efficient ...
-                try:
-                    expenses.remove(virtual_debit_map[expense.visa_debit_id])
-                    expenses.remove(expense)
-                except ValueError as e:
-                    debug(f'[red]{e}[/red]')
-                continue
-
-            debug(f'adding {expense} to map')
-            virtual_debit_map[expense.visa_debit_id] = expense
-
-    debug(f'{len(expenses)} expenses remain after filtering')
-    return expenses
 
 
 def generate_report(expenses: list[Expense]):
@@ -668,6 +642,89 @@ def export_report(report_data):
         debug(f'saved workbook "{workbook.filename}"')
 
 
+def filter_visa_debit_corrections(expenses: list[Expense]):
+    """
+    Remove corrected VISA virtual debit™ expenses
+
+    """
+    debug(f'filtering visa debit corrections from {len(expenses)} expenses')
+
+    virtual_debit_map = {}
+    for index, expense in enumerate(expenses):
+        if expense.visa_debit_id is not None:
+            if expense.visa_debit_id in virtual_debit_map:
+                debug(f'removing corrected expense {expense} ')
+                # @ToDo: this can't be efficient ...
+                try:
+                    expenses.remove(virtual_debit_map[expense.visa_debit_id])
+                    expenses.remove(expense)
+                except ValueError as e:
+                    debug(f'[red]{e}[/red]')
+                continue
+
+            debug(f'adding {expense} to map')
+            virtual_debit_map[expense.visa_debit_id] = expense
+
+    debug(f'{len(expenses)} expenses remain after filtering')
+    return expenses
+
+
+def filter_nsfs(expenses: list[Expense], nsfs: list[NSF]) -> list[Expense]:
+    """
+    Remove expenses that were reversed due to NSF
+
+    Args:
+        expenses: The expenses to clean
+        nsfs: The NSFs to filter out
+
+    """
+    debug(f'filtering {len(nsfs)} NSFd items from {len(expenses)} expenses')
+
+    clean_expenses = []
+
+    # process nsfs in reverse order so we can split the expenses list for a
+    # smaller search window
+    for i in range(len(nsfs), 0, -1):
+        nsf = nsfs[i - 1]
+        debug(f'processing {nsf}')
+        last_expense_index = len(expenses) - 1
+        debug(f'starting with expense {last_expense_index}')
+        for j in range(last_expense_index, 0, -1):
+            expense = expenses[j]
+            if expense.date > nsf.date:
+                continue
+
+            debug(f'expense {expense} is on or before {nsf}')
+            slice_index = min(j + 1, len(expenses) - 1)
+
+            expenses, remainder = expenses[:slice_index], expenses[slice_index:]
+            clean_expenses = remainder + clean_expenses  # ugh, efficiency :(
+            last_expense_index = len(expenses) - 1
+
+            debug('cycling back looking for matching expense')
+            for k in range(last_expense_index, 0, -1):
+                expense = expenses[k]
+                days_elapsed = (nsf.date - expense.date).days
+                if expense.date >= nsf.date and days_elapsed < 7:
+                    debug(f'expense {k} {expense} is on or before {nsf} by {days_elapsed}')
+                    if expense.amount == nsf.amount:
+                        debug(f'expense {k} amount matched, popping it')
+                        del expenses[k]
+                        break
+                else:
+                    # We didn't find the expense matching the NSF
+                    debug(f'no expense matched {nsf}')
+                    break
+
+            debug(f'going to next NSF')
+            break
+
+    expenses = expenses + clean_expenses
+    debug(f'{len(expenses)} expenses remain after filtering')
+
+    return expenses
+
+
 def get_expenses(statement: str):
     """
     Get the expenses for the given statement(s)
@@ -681,9 +738,18 @@ def get_expenses(statement: str):
         path_item = pathlib.Path(statement)
         statement_expenses, statement_nsfs = process_statement(path_item)
 
-    # @ToDo Process the NSFs here
-    rprint(statement_nsfs)
-    return filter_visa_debit_corrections(statement_expenses)
+    # Force the sort here by date so that we can rely on it downstream
+    statement_expenses = sorted(statement_expenses, key=lambda se: se.date)
+    statement_nsfs = sorted(statement_nsfs, key=lambda sn: sn.date)
+
+    filtered_expenses = filter_nsfs(
+        filter_visa_debit_corrections(
+            expenses=statement_expenses
+        ),
+        statement_nsfs
+    )
+
+    return filtered_expenses
 
 
 @app.command()
