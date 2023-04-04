@@ -36,6 +36,11 @@ You should see output similar to:
 
 ```
 
+## Configuration
+Configuration for the parser categories should be placed in the root folder as `categories.json`, you can find an example here:
+
+https://gist.github.com/mpurdon/f52ae8216d1ec851873abacea047720f
+
 ## To Do Items
 
 ### Handle NSF Items
